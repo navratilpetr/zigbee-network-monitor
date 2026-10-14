@@ -1,14 +1,36 @@
+# Python bytecode & cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
 env/
 venv/
 .venv/
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
+ENV/
+
+# Databases and local runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+data/*.db*
+zigbee-monitor/data/*
+!zigbee-monitor/data/.gitkeep
+
+# Environment variables & secrets
 .env
+.env.*
+options.json
+
+# IDE and OS
 .DS_Store
+.idea/
+.vscode/
+*.swp
+*~
