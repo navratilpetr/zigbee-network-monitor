@@ -64,6 +64,13 @@ class ZigbeeCollector:
         logger.info(f"ZigbeeCollector initialized in '{self.mode}' mode. (Z2M Path: {self.config['z2m_path']})")
 
     def _determine_mode(self) -> str:
+        # Auto-detect fallback paths if configured path does not exist
+        if not os.path.isdir(self.config["z2m_path"]):
+            for fallback in ("/homeassistant/zigbee2mqtt", "/config/zigbee2mqtt"):
+                if os.path.isdir(fallback):
+                    self.config["z2m_path"] = fallback
+                    break
+
         explicit_mode = self.config.get("source_mode", "auto")
         if explicit_mode in ("local", "ssh", "mqtt"):
             return explicit_mode

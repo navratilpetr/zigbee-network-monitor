@@ -6,22 +6,17 @@ init: false
 arch:
   - aarch64
   - amd64
-  - armhf
-  - armv7
-  - i386
-startup: application
-boot: auto
 ingress: true
 ingress_port: 8765
 panel_icon: "mdi:zigbee"
 panel_title: "Zigbee Monitor"
 homeassistant_api: true
 map:
-  - config:ro
+  - homeassistant_config:ro
   - share:rw
 options:
   source_mode: "local"
-  z2m_path: "/config/zigbee2mqtt"
+  z2m_path: "/homeassistant/zigbee2mqtt"
   scan_interval_minutes: 5
   offline_threshold_hours: 12
   lqi_weak_threshold: 50
