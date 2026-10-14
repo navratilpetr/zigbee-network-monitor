@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 import glob
 import paho.mqtt.publish as mqtt_publish
+import paho.mqtt.client as mqtt_client
+try:
+    from paho.mqtt.enums import CallbackAPIVersion
+    _PAHO_V2 = True
+except Exception:
+    _PAHO_V2 = False
 
 DEFAULT_CONFIG = {
     "source_mode": os.getenv("SOURCE_MODE", "auto"),
@@ -61,6 +67,9 @@ class ZigbeeCollector:
     def __init__(self, config: Dict[str, Any] = None):
         self.config = {**DEFAULT_CONFIG, **(config or {})}
         self.mode = self._determine_mode()
+        self._mqtt_last_check: float = 0.0
+        self._mqtt_last_status: Dict[str, Any] = {"status": "unknown", "message": "Inicializace"}
+        self._auto_load_mqtt_config()
         logger.info(f"ZigbeeCollector initialized in '{self.mode}' mode. (Z2M Path: {self.config['z2m_path']})")
 
     def _determine_mode(self) -> str:
@@ -80,6 +89,161 @@ class ZigbeeCollector:
         if self.config.get("ssh_host"):
             return "ssh"
         return "local"
+
+    def _extract_mqtt_config_if_needed(self, cfg: dict):
+        if not isinstance(cfg, dict):
+            return
+        mqtt_sec = cfg.get("mqtt")
+        if isinstance(mqtt_sec, dict):
+            if not self.config.get("mqtt_user") and mqtt_sec.get("user"):
+                self.config["mqtt_user"] = str(mqtt_sec.get("user"))
+                logger.info(f"Auto-configured MQTT user from Z2M configuration: {self.config['mqtt_user']}")
+            if not self.config.get("mqtt_password") and mqtt_sec.get("password"):
+                self.config["mqtt_password"] = str(mqtt_sec.get("password"))
+                logger.info("Auto-configured MQTT password from Z2M configuration.")
+            if mqtt_sec.get("base_topic"):
+                self.config["mqtt_topic"] = str(mqtt_sec.get("base_topic"))
+            
+            srv = mqtt_sec.get("server", "")
+            if srv and (not self.config.get("mqtt_host") or self.config.get("mqtt_host") == "core-mosquitto"):
+                m = re.search(r"mqtts?://([^:/]+)(?::([0-9]+))?", srv)
+                if m:
+                    self.config["mqtt_host"] = m.group(1)
+                    if m.group(2):
+                        self.config["mqtt_port"] = int(m.group(2))
+                    logger.info(f"Auto-configured MQTT host from Z2M configuration: {self.config['mqtt_host']}:{self.config.get('mqtt_port')}")
+
+    def _auto_load_mqtt_config(self):
+        """Attempts to load and auto-configure MQTT credentials from configuration.yaml on startup."""
+        cfg_file = os.path.join(self.config.get("z2m_path", ""), "configuration.yaml")
+        if os.path.isfile(cfg_file):
+            try:
+                with open(cfg_file, "r", encoding="utf-8", errors="ignore") as f:
+                    cfg = yaml.safe_load(f)
+                    if isinstance(cfg, dict):
+                        self._extract_mqtt_config_if_needed(cfg)
+            except Exception as e:
+                logger.debug(f"Could not preload configuration.yaml for MQTT on startup: {e}")
+
+    def test_mqtt_connection(self) -> Tuple[bool, str]:
+        """Tests whether connection to the MQTT broker succeeds."""
+        self._auto_load_mqtt_config()
+        if self.mode == "ssh" and self.config.get("ssh_host"):
+            user = self.config.get("mqtt_user", "")
+            pwd = self.config.get("mqtt_password", "")
+            host = self.config.get("mqtt_host", "172.30.32.1")
+            auth_args = f"-u {user} -P '{pwd}'" if user else ""
+            topic = f"{self.config.get('mqtt_topic', 'zigbee2mqtt')}/bridge/request/health_check"
+            cmd_test = f"mosquitto_pub -h {host} {auth_args} -t '{topic}' -m '{{}}' 2>&1"
+            try:
+                res = self._run_ssh(cmd_test)
+                if "Error" in res or "Connection Refused" in res:
+                    return False, res.strip()
+                return True, "OK"
+            except Exception as e:
+                return False, str(e)
+        else:
+            try:
+                if _PAHO_V2:
+                    client = mqtt_client.Client(CallbackAPIVersion.VERSION2, client_id="zigbee_mon_probe")
+                else:
+                    client = mqtt_client.Client(client_id="zigbee_mon_probe")
+            except Exception:
+                client = mqtt_client.Client(client_id="zigbee_mon_probe")
+
+            if self.config.get("mqtt_user"):
+                client.username_pw_set(self.config["mqtt_user"], self.config.get("mqtt_password", ""))
+
+            connected = False
+            conn_err = None
+
+            def on_connect(c, userdata, flags, rc, *args):
+                nonlocal connected, conn_err
+                code = getattr(rc, "value", rc)
+                if code == 0:
+                    connected = True
+                elif code in (4, 134, 135):
+                    conn_err = "Chybné jméno nebo heslo k MQTT brokeru"
+                elif code in (5, 135):
+                    conn_err = "Přístup k MQTT brokeru odmítnut (Not authorized)"
+                else:
+                    conn_err = f"Chyba spojení s MQTT brokerem (kód {code})"
+
+            client.on_connect = on_connect
+            hosts_to_try = [self.config.get("mqtt_host", "core-mosquitto")]
+            if "172.30.32.1" not in hosts_to_try:
+                hosts_to_try.append("172.30.32.1")
+
+            last_ex = None
+            for h in hosts_to_try:
+                try:
+                    port = int(self.config.get("mqtt_port", 1883))
+                    client.connect(h, port, keepalive=3)
+                    client.loop_start()
+                    start_t = time.time()
+                    while time.time() - start_t < 2.0:
+                        if connected or conn_err:
+                            break
+                        time.sleep(0.1)
+                    client.loop_stop()
+                    try:
+                        client.disconnect()
+                    except Exception:
+                        pass
+
+                    if connected:
+                        self.config["mqtt_host"] = h
+                        return True, "OK"
+                    if conn_err:
+                        return False, conn_err
+                except Exception as ex:
+                    last_ex = ex
+
+            return False, conn_err or str(last_ex or "Nelze se spojit s MQTT brokerem")
+
+    def get_communication_status(self) -> Dict[str, Any]:
+        """Returns health status of Z2M data source and MQTT communication."""
+        z2m_ok = False
+        z2m_msg = ""
+        z2m_dir = self.config.get("z2m_path", "")
+        if self.mode == "local":
+            db_p = os.path.join(z2m_dir, "database.db")
+            if os.path.isfile(db_p):
+                z2m_ok = True
+                z2m_msg = "Soubory Zigbee2MQTT jsou čteny lokálně v pořádku"
+            else:
+                z2m_msg = f"Nenalezen soubor database.db v {z2m_dir}"
+        elif self.mode == "ssh":
+            if self.config.get("ssh_host"):
+                z2m_ok = True
+                z2m_msg = f"SSH spojení na {self.config.get('ssh_host')} aktivní"
+            else:
+                z2m_msg = "SSH hostitel není nakonfigurován"
+        else:
+            z2m_ok = True
+            z2m_msg = "MQTT režim aktivní"
+
+        now = time.time()
+        if now - getattr(self, "_mqtt_last_check", 0) > 60:
+            ok, msg = self.test_mqtt_connection()
+            self._mqtt_last_check = now
+            self._mqtt_last_status = {
+                "status": "ok" if ok else "error",
+                "message": msg,
+                "host": self.config.get("mqtt_host", "core-mosquitto"),
+                "port": self.config.get("mqtt_port", 1883),
+                "user": self.config.get("mqtt_user") or None
+            }
+
+        return {
+            "z2m": {
+                "status": "ok" if z2m_ok else "error",
+                "mode": self.mode,
+                "path": z2m_dir,
+                "message": z2m_msg
+            },
+            "mqtt": getattr(self, "_mqtt_last_status", {"status": "unknown", "message": "Nekontrolováno"})
+        }
 
     def _run_ssh(self, remote_command: str) -> str:
         cmd = [
@@ -139,6 +303,7 @@ class ZigbeeCollector:
                                     friendly_names[ieee] = dev_info["friendly_name"]
                         if "blocklist" in cfg and isinstance(cfg["blocklist"], list):
                             blocklist = [str(x) for x in cfg["blocklist"]]
+                        self._extract_mqtt_config_if_needed(cfg)
             except Exception as e:
                 logger.warning(f"Error reading local configuration.yaml: {e}")
 
@@ -248,6 +413,7 @@ class ZigbeeCollector:
                                 friendly_names[ieee] = dev_info["friendly_name"]
                     if "blocklist" in cfg and isinstance(cfg["blocklist"], list):
                         blocklist = [str(x) for x in cfg["blocklist"]]
+                    self._extract_mqtt_config_if_needed(cfg)
             except Exception as e:
                 logger.warning(f"Error parsing configuration.yaml: {e}")
 
@@ -380,30 +546,31 @@ class ZigbeeCollector:
 
     def _fetch_network_links_local(self) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         z2m_dir = self.config["z2m_path"]
-        latest_line = None
-        for f in sorted(glob.glob(os.path.join(z2m_dir, "log", "*", "log*.log"))):
+        best_line = None
+        best_ts = None
+        for f in glob.glob(os.path.join(z2m_dir, "log", "*", "log*.log")):
             try:
                 with open(f, 'r', encoding="utf-8", errors='ignore') as fp:
                     for line in fp:
                         if 'response/networkmap' in line and 'payload' in line:
-                            latest_line = line
+                            ts = line[1:20] if line.startswith('[') else None
+                            if best_ts is None or (ts and ts > best_ts):
+                                best_ts = ts
+                                best_line = line
             except Exception:
                 pass
-        if latest_line:
-            ts = None
-            if latest_line.startswith('['):
-                ts = latest_line[1:20]
+        if best_line:
+            iso_ts = None
+            if best_ts:
+                try:
+                    dt = datetime.strptime(best_ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=ZoneInfo("Europe/Prague"))
+                    iso_ts = dt.isoformat()
+                except Exception:
+                    pass
             try:
-                payload_str = latest_line.split('payload ', 1)[1].strip().strip("'")
+                payload_str = best_line.split('payload ', 1)[1].strip().strip("'")
                 data = json.loads(payload_str)
                 links = data.get('data', {}).get('value', {}).get('links', [])
-                iso_ts = None
-                if ts:
-                    try:
-                        dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=ZoneInfo("Europe/Prague"))
-                        iso_ts = dt.isoformat()
-                    except Exception:
-                        pass
                 return links, iso_ts
             except Exception as e:
                 logger.warning(f"Error parsing local networkmap payload: {e}")
@@ -412,20 +579,21 @@ class ZigbeeCollector:
     def _fetch_network_links_ssh(self) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         py_script = (
             "import json, glob\n"
-            "latest_line = None\n"
-            "for f in sorted(glob.glob('/homeassistant/zigbee2mqtt/log/*/log*.log')):\n"
+            "best_line = None\n"
+            "best_ts = None\n"
+            "for f in glob.glob('/homeassistant/zigbee2mqtt/log/*/log*.log'):\n"
             "    with open(f, 'r', errors='ignore') as fp:\n"
             "        for line in fp:\n"
             "            if 'response/networkmap' in line and 'payload' in line:\n"
-            "                latest_line = line\n"
-            "if latest_line:\n"
-            "    ts = None\n"
-            "    if latest_line.startswith('['):\n"
-            "        ts = latest_line[1:20]\n"
-            "    payload_str = latest_line.split('payload ', 1)[1].strip().strip(\"'\")\n"
+            "                ts = line[1:20] if line.startswith('[') else None\n"
+            "                if best_ts is None or (ts and ts > best_ts):\n"
+            "                    best_ts = ts\n"
+            "                    best_line = line\n"
+            "if best_line:\n"
+            "    payload_str = best_line.split('payload ', 1)[1].strip().strip(\"'\")\n"
             "    data = json.loads(payload_str)\n"
             "    links = data.get('data', {}).get('value', {}).get('links', [])\n"
-            "    print(json.dumps({'links': links, 'timestamp': ts}))\n"
+            "    print(json.dumps({'links': links, 'timestamp': best_ts}))\n"
             "else:\n"
             "    print(json.dumps({'links': [], 'timestamp': None}))\n"
         )
@@ -575,34 +743,58 @@ class ZigbeeCollector:
             return self._is_active_map_scan_running_local()
         return self._is_active_map_scan_running_ssh()
 
-    def trigger_active_map_scan(self):
-        """Sends MQTT request for a fresh networkmap scan (used in night schedule or on demand)"""
+    def trigger_active_map_scan(self) -> Tuple[bool, str]:
+        """Sends MQTT request for a fresh networkmap scan (used in night schedule or on demand).
+        Returns (success: bool, message: str).
+        """
         topic = f"{self.config.get('mqtt_topic', 'zigbee2mqtt')}/bridge/request/networkmap"
         payload = json.dumps({"type": "raw"})
+        self._auto_load_mqtt_config()
+
         if self.mode in ("local", "mqtt") or not self.config.get("ssh_host"):
-            try:
-                auth = None
-                if self.config.get("mqtt_user"):
-                    auth = {
-                        "username": self.config["mqtt_user"],
-                        "password": self.config.get("mqtt_password", "")
-                    }
-                mqtt_publish.single(
-                    topic,
-                    payload=payload,
-                    hostname=self.config.get("mqtt_host", "core-mosquitto"),
-                    port=int(self.config.get("mqtt_port", 1883)),
-                    auth=auth,
-                    client_id="zigbee_monitor"
-                )
-                logger.info(f"Sent networkmap request to MQTT topic: {topic} (broker: {self.config.get('mqtt_host')})")
-                return "OK"
-            except Exception as e:
-                logger.error(f"Failed to publish networkmap request via MQTT: {e}")
-                return str(e)
+            auth = None
+            if self.config.get("mqtt_user"):
+                auth = {
+                    "username": self.config["mqtt_user"],
+                    "password": self.config.get("mqtt_password", "")
+                }
+            hosts = [self.config.get("mqtt_host", "core-mosquitto")]
+            if "172.30.32.1" not in hosts:
+                hosts.append("172.30.32.1")
+
+            port = int(self.config.get("mqtt_port", 1883))
+            last_err = None
+            for h in hosts:
+                try:
+                    mqtt_publish.single(
+                        topic,
+                        payload=payload,
+                        hostname=h,
+                        port=port,
+                        auth=auth,
+                        client_id="zigbee_monitor"
+                    )
+                    self.config["mqtt_host"] = h
+                    logger.info(f"Sent networkmap request to MQTT topic: {topic} (broker: {h})")
+                    return True, "OK"
+                except Exception as e:
+                    last_err = str(e)
+
+            logger.error(f"Failed to publish networkmap request via MQTT: {last_err}")
+            return False, last_err or "Chyba spojení s MQTT brokerem"
         else:
-            cmd_pub = f"mosquitto_pub -h 172.30.32.1 -u mqttuser -P 'Fr0t0vacka+' -t '{topic}' -m '{payload}'"
-            return self._run_ssh(cmd_pub)
+            user = self.config.get("mqtt_user", "")
+            pwd = self.config.get("mqtt_password", "")
+            host = self.config.get("mqtt_host", "172.30.32.1")
+            auth_args = f"-u {user} -P '{pwd}'" if user else ""
+            cmd_pub = f"mosquitto_pub -h {host} {auth_args} -t '{topic}' -m '{payload}'"
+            try:
+                res = self._run_ssh(cmd_pub)
+                if "Error" in res or "Connection Refused" in res:
+                    return False, res.strip()
+                return True, "OK"
+            except Exception as e:
+                return False, str(e)
 
     def trigger_auto_radio_scan_if_needed(self, new_device_names: List[str]):
         """Triggers an active network map scan on Home Assistant when new devices are discovered, protected by 15-min cooldown."""

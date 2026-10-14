@@ -296,12 +296,16 @@
             </h1>
             <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hidden sm:inline">Infrastruktura</span>
           </div>
-          <!-- Coordinator info moved to top header -->
           <div class="flex items-center gap-1.5 text-xs text-slate-300 mt-0.5">
             <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
             <span class="text-slate-400 text-[11px] hidden sm:inline">Koordinátor:</span>
             <strong id="hdrCoordinator" class="text-slate-200 font-mono text-[11px] sm:text-xs truncate">SLZB-06M (192.168.74.11)</strong>
             <span class="text-slate-400 font-mono text-[10px] sm:text-[11px] hidden md:inline">• Kanál 25</span>
+            <!-- MQTT Communication badge -->
+            <span id="hdrMqttStatus" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 ml-1.5 cursor-help" title="MQTT spojení v pořádku">
+              <span id="hdrMqttDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span id="hdrMqttText">MQTT: OK</span>
+            </span>
           </div>
         </div>
       </div>
@@ -1747,6 +1751,27 @@
           if (data.coordinator) {
             const coordEl = document.getElementById('hdrCoordinator');
             if (coordEl) coordEl.innerText = data.coordinator;
+          }
+
+          // MQTT Communication health badge
+          if (data.communication && data.communication.mqtt) {
+            const mq = data.communication.mqtt;
+            const badge = document.getElementById('hdrMqttStatus');
+            const dot = document.getElementById('hdrMqttDot');
+            const text = document.getElementById('hdrMqttText');
+            if (badge && dot && text) {
+              if (mq.status === 'ok') {
+                badge.className = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 ml-1.5 cursor-help';
+                badge.title = `MQTT spojení v pořádku (Broker: ${mq.host || 'lokální'})`;
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+                text.innerText = 'MQTT: OK';
+              } else {
+                badge.className = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-rose-950/80 text-rose-300 border border-rose-500/30 ml-1.5 cursor-help';
+                badge.title = `Chyba MQTT komunikace: ${mq.message || 'Nelze se spojit s brokerem'}`;
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse';
+                text.innerText = 'MQTT: CHYBA';
+              }
+            }
           }
 
           // Ingress check: keep accounts tab and logout button hidden

@@ -83,5 +83,25 @@ class TestCollectorHelpers(unittest.TestCase):
         self.assertEqual(parents.get("0xrouter1"), "0xcoord")
 
 
+    def test_auto_extract_mqtt_config_from_z2m_configuration(self):
+        collector = ZigbeeCollector()
+        collector.config["mqtt_user"] = ""
+        collector.config["mqtt_password"] = ""
+        
+        cfg = {
+            "mqtt": {
+                "base_topic": "zigbee2mqtt",
+                "server": "mqtt://172.30.32.1:1883",
+                "user": "mqttuser",
+                "password": "secret_password"
+            }
+        }
+        collector._extract_mqtt_config_if_needed(cfg)
+        self.assertEqual(collector.config["mqtt_user"], "mqttuser")
+        self.assertEqual(collector.config["mqtt_password"], "secret_password")
+        self.assertEqual(collector.config["mqtt_host"], "172.30.32.1")
+        self.assertEqual(collector.config["mqtt_port"], 1883)
+
+
 if __name__ == "__main__":
     unittest.main()

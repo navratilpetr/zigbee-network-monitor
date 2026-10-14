@@ -142,8 +142,9 @@ async def get_status(request: Request):
     
     anomalies = get_network_anomalies(hours=48)
     last_radio_scan = get_last_radio_scan_timestamp()
-    last_quick_audit = snap["timestamp"] if snap else None
     is_ing = bool(request.headers.get("X-Ingress-Path") or request.headers.get("X-Hassio-Key") or os.getenv("SUPERVISOR_TOKEN"))
+    last_quick_audit = snap["timestamp"] if snap else None
+    comm_status = collector.get_communication_status()
 
     if not snap:
         return {
@@ -151,6 +152,7 @@ async def get_status(request: Request):
             "is_scanning": is_scanning,
             "is_ingress": is_ing,
             "coordinator": coord_name,
+            "communication": comm_status,
             "anomalies": anomalies,
             "last_quick_audit": None,
             "last_radio_scan": last_radio_scan
@@ -165,6 +167,7 @@ async def get_status(request: Request):
         "is_scanning": is_scanning,
         "is_ingress": is_ing,
         "coordinator": coord_name,
+        "communication": comm_status,
         "snapshot": snap_dict,
         "anomalies": anomalies,
         "last_quick_audit": last_quick_audit,
@@ -568,13 +571,23 @@ async def trigger_active_topology_scan(background_tasks: BackgroundTasks, user: 
             content={"status": "busy", "message": "Na Home Assistantu již právě probíhá scan spuštěný ze Zigbee2MQTT. Počkejte na dokončení."}
         )
 
+    # Immediately trigger the active map scan synchronously to validate MQTT connection & credentials
+    success, err_msg = collector.trigger_active_map_scan()
+    if not success:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": f"Nelze spustit scan (chyba MQTT): {err_msg}. Zkontrolujte konfiguraci MQTT brokera (jméno a heslo)."
+            }
+        )
+
     def do_active_scan():
         with ZigbeeCollector._active_scan_lock:
             ZigbeeCollector._active_scan_running = True
             ZigbeeCollector._active_scan_started_at = time.time()
         try:
-            logger.info("Triggering active networkmap scan via MQTT...")
-            collector.trigger_active_map_scan()
+            logger.info("Active networkmap request dispatched to MQTT, waiting for coordinator completion...")
             # Initial grace period for coordinator to start querying
             time.sleep(15)
             # Poll HA for completion dynamically (up to 180s total)

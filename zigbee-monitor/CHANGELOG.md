@@ -2,6 +2,13 @@
 
 Všechny významné změny v tomto doplňku budou dokumentovány v tomto souboru.
 
+## [1.0.4] - 2026-10-14
+### Přidáno & Opraveno
+- **Automatická detekce MQTT (Zero-Config)**: Monitor automaticky přebírá přihlašovací údaje k MQTT brokeru (`user`, `password`, `server`, `topic`) přímo z existujícího souboru `configuration.yaml` Zigbee2MQTT. Není nutné nic ručně zadávat v nastavení doplňku.
+- **Okamžitá validace před spuštěním rádiového scanu**: Před zahájením scanu se okamžitě ověří odeslání MQTT požadavku. Pokud broker požadavek odmítne (např. chybné heslo), uživatel ihned vidí srozumitelnou chybovou hlášku místo tichého selhání.
+- **Indikátor stavu MQTT komunikace v záhlaví**: V horní liště vedle koordinátora přidán stavový odznak `MQTT: OK` (zelená) / `MQTT: CHYBA` (červená) s tooltipem diagnostiky spojení.
+- **Oprava načítání času posledního scanu při rotaci logů**: Opraven výběr nejnovějšího scanu porovnáváním časových razítek v logu místo abecedního řazení souborů `log*.log`.
+
 ## [1.0.3] - 2026-10-14
 ### Opraveno & Vylepšeno
 - **Kontinuita topologie při výpadku/timeoutu routerů**: Pokud během aktivního rádiového scanu některý router neodpoví včas na `Mgmt_Lqi_req` (timeout LQI), koncová bateriová zařízení (např. TRV hlavice) neztratí své vazby v topologické mapě. Monitor nyní zachovává posledního známého platného rodiče z databáze (`parent persistence`).
