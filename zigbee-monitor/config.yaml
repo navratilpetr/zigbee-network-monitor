@@ -1,0 +1,49 @@
+name: "Zigbee Network Monitor"
+description: "Pokročilá diagnostika, LQI telemetrie, topologická mapa a AI plánovač údržby pro Zigbee2MQTT"
+slug: "zigbee_network_monitor"
+version: "1.0.0"
+init: false
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8765
+panel_icon: "mdi:zigbee"
+panel_title: "Zigbee Monitor"
+homeassistant_api: true
+map:
+  - config:ro
+  - share:rw
+options:
+  source_mode: "local"
+  z2m_path: "/config/zigbee2mqtt"
+  scan_interval_minutes: 5
+  offline_threshold_hours: 12
+  lqi_weak_threshold: 50
+  battery_low_threshold: 20
+  retention_days: 120
+  mqtt_host: "core-mosquitto"
+  mqtt_port: 1883
+  mqtt_user: ""
+  mqtt_password: ""
+  mqtt_topic: "zigbee2mqtt"
+  gemini_api_key: ""
+schema:
+  source_mode: list(local|mqtt|ssh)
+  z2m_path: str
+  scan_interval_minutes: int
+  offline_threshold_hours: int
+  lqi_weak_threshold: int
+  battery_low_threshold: int
+  retention_days: int
+  mqtt_host: str?
+  mqtt_port: port?
+  mqtt_user: str?
+  mqtt_password: password?
+  mqtt_topic: str?
+  gemini_api_key: password?

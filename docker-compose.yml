@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  zigbee-monitor:
+    build:
+      context: ./zigbee-monitor
+      dockerfile: Dockerfile
+    image: zigbee-network-monitor:latest
+    container_name: zigbee-network-monitor
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    volumes:
+      # Perzistentní úložiště pro SQLite databázi (historie, grafy, stavy)
+      - ./data:/data
+      # POKUD máte přístup k datům Z2M na stejném disku / bind mountu:
+      # - /var/lib/docker/volumes/zigbee2mqtt_data/_data:/config/zigbee2mqtt:ro
+    environment:
+      # Režim: 'local' (čtení souborů z disku), 'mqtt' (čisté MQTT), nebo 'ssh'
+      - SOURCE_MODE=local
+      - Z2M_PATH=/config/zigbee2mqtt
+      - SCAN_INTERVAL_MINUTES=5
+      - OFFLINE_THRESHOLD_HOURS=12
+      - LQI_WEAK_THRESHOLD=50
+      - BATTERY_LOW_THRESHOLD=20
+      - RETENTION_DAYS=120
+      # MQTT broker (pro spouštění rádiových scanů networkmap nebo sběr dat):
+      - MQTT_HOST=192.168.1.50
+      - MQTT_PORT=1883
+      - MQTT_USER=
+      - MQTT_PASSWORD=
+      - MQTT_TOPIC=zigbee2mqtt
+      # Volitelný klíč pro Google Gemini AI konzultanta:
+      - GEMINI_API_KEY=
