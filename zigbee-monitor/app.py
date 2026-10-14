@@ -16,9 +16,11 @@ from database import (
     get_connection, init_db, hash_password, verify_password,
     create_user_session, get_session_user, delete_user_session,
     set_device_ignore_status, get_device_replacements, get_blocklist,
+    remove_from_blocklist,
     get_network_anomalies, get_orphaned_devices,
     get_last_radio_scan_timestamp, set_last_radio_scan_timestamp
 )
+
 from collector import ZigbeeCollector
 from ai_service import get_condensed_summary, generate_technician_checklist, ask_ai_consultant
 
@@ -394,6 +396,12 @@ async def get_replacements_list(friendly_name: Optional[str] = None):
 @app.get("/api/blocklist")
 async def get_blocklist_list():
     return {"blocklist": get_blocklist()}
+
+@app.delete("/api/blocklist/{ieee_addr}")
+async def delete_blocklist_entry(ieee_addr: str):
+    remove_from_blocklist(ieee_addr)
+    return {"status": "ok", "message": f"Zařízení {ieee_addr} odebráno z blocklistu."}
+
 
 @app.get("/api/topology")
 async def get_topology(mode: str = "parents", router_ieee: Optional[str] = None, hide_offline: bool = False):

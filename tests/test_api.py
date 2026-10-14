@@ -59,6 +59,11 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertIn("blocklist", data)
         self.assertIsInstance(data["blocklist"], list)
 
+        # Test DELETE
+        del_resp = self.client.delete("/api/blocklist/0xnonexistent")
+        self.assertEqual(del_resp.status_code, 200)
+
+
 
 if __name__ == "__main__":
     unittest.main()

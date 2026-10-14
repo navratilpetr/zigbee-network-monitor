@@ -1084,13 +1084,15 @@
                   <th class="py-2.5 px-3">Důvod vyřazení</th>
                   <th class="py-2.5 px-3">Evidováno</th>
                   <th class="py-2.5 px-3">Stav v síti</th>
+                  <th class="py-2.5 px-3 text-right">Akce</th>
                 </tr>
               </thead>
               <tbody id="blocklistTableBody" class="divide-y divide-slate-800">
                 <tr>
-                  <td colspan="5" class="text-center py-6 text-slate-500">Načítání blocklistu...</td>
+                  <td colspan="6" class="text-center py-6 text-slate-500">Načítání blocklistu...</td>
                 </tr>
               </tbody>
+
             </table>
           </div>
         </div>
@@ -3177,7 +3179,7 @@
         const dataBl = await resBl.json();
         const items = dataBl.blocklist || [];
         if (items.length === 0) {
-          blTbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-500">Žádná zařízení nejsou na blocklistu.</td></tr>';
+          blTbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-500">Žádná zařízení nejsou na blocklistu.</td></tr>';
         } else {
           blTbody.innerHTML = items.map(b => {
             const inNet = (allDevices || []).find(d => d.ieee_addr === b.ieee_addr);
@@ -3198,13 +3200,19 @@
                 <td class="py-2.5 px-3 text-slate-300">${b.reason || 'Zablokováno v configuration.yaml'}</td>
                 <td class="py-2.5 px-3 font-mono text-slate-400">${new Date(b.detected_at).toLocaleString('cs-CZ')}</td>
                 <td class="py-2.5 px-3">${netStatus}</td>
+                <td class="py-2.5 px-3 text-right">
+                  <button onclick="deleteBlocklistItem('${b.ieee_addr}')" title="Odebrat z evidence monitoru" class="p-1 px-2.5 rounded bg-slate-700/60 hover:bg-rose-600 text-slate-300 hover:text-white text-xs transition">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </td>
               </tr>
             `;
           }).join('');
         }
       } catch (err) {
-        blTbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-rose-400">Chyba při načítání blocklistu.</td></tr>';
+        blTbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-rose-400">Chyba při načítání blocklistu.</td></tr>';
       }
+
 
       // Load replacements
       try {
@@ -3230,7 +3238,23 @@
       }
     }
 
+    async function deleteBlocklistItem(ieee) {
+      if (!confirm(`Opravdu odebrat zařízení ${ieee} z evidence blocklistu?`)) return;
+      try {
+        const res = await fetch(`/api/blocklist/${encodeURIComponent(ieee)}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast(`Zařízení ${ieee} odebráno z evidence blocklistu! 🗑️`);
+          loadBlocklistAndReplacementsView();
+        } else {
+          showToast('Chyba při odebírání', 'fa-circle-xmark text-rose-400');
+        }
+      } catch (err) {
+        showToast('Chyba komunikace', 'fa-circle-xmark text-rose-400');
+      }
+    }
+
     function setEventCategory(cat) {
+
       currentEventCat = cat;
       ['all', 'drops', 'online', 'battery', 'mute', 'new', 'replaced', 'blocked', 'anomalies'].forEach(c => {
         const btn = document.getElementById(`btnEventCat-${c}`);

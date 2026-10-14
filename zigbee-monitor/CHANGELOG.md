@@ -2,7 +2,13 @@
 
 Všechny významné změny v tomto doplňku budou dokumentovány v tomto souboru.
 
+## [1.0.2] - 2026-10-14
+### Opraveno
+- **Plná obousměrná synchronizace blocklistu**: Při odebrání adresy ze Z2M `configuration.yaml` (nebo jeho vyprázdnění na `blocklist: []`) se záznam okamžitě automaticky odstraní i z evidence monitoru.
+- **Manuální správa blocklistu**: Do tabulky Blocklistu přidáno tlačítko pro rychlé smazání zařízení z evidence.
+
 ## [1.0.1] - 2026-10-14
+
 ### Změněno & Vylepšeno
 - **Úspora místa v záložce Přehled**: Informace o koordinátorovi sítě a celkové zdraví sítě přesunuty přímo do horní lišty. Odstraněn duplicitní stavový pruh.
 - **Automatické obnovování (Auto-reload)**: Zaveden periodický refresh metrik každých 30 sekund s indikátorem stavu a okamžitým obnovením při návratu do okna.

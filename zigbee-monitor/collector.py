@@ -647,9 +647,9 @@ class ZigbeeCollector:
         devices_raw, states, friendly_names, blocklist, log_raw, ha_mqtt_devices = self.fetch_raw_data()
         logger.info(f"Retrieved {len(devices_raw)} devices, {len(states)} states, {len(friendly_names)} names, {len(ha_mqtt_devices)} HA MQTT devices, log length: {len(log_raw)}")
 
-        # Sync blocklist into DB
-        if blocklist:
-            sync_blocklist(blocklist, friendly_names)
+        # Sync blocklist into DB (clears unblocked devices if blocklist was modified/emptied)
+        sync_blocklist(blocklist or [], friendly_names)
+
 
         # Fetch topology links from logs
         links, scan_iso_ts = self.fetch_network_links()

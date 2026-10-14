@@ -404,9 +404,10 @@ def sync_blocklist(blocklist_ieees: List[str], friendly_names_map: Optional[Dict
     """Synchronizes blocklist from configuration.yaml into hardware_blocklist table."""
     now_iso = datetime.now().isoformat()
     names = friendly_names_map or {}
+    current_set = set(blocklist_ieees or [])
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        for ieee in blocklist_ieees:
+        for ieee in current_set:
             fname = names.get(ieee, ieee)
             cursor.execute("""
                 INSERT INTO hardware_blocklist (ieee_addr, friendly_name, reason, detected_at)
@@ -414,6 +415,22 @@ def sync_blocklist(blocklist_ieees: List[str], friendly_names_map: Optional[Dict
                 ON CONFLICT(ieee_addr) DO UPDATE SET
                     friendly_name = COALESCE(excluded.friendly_name, hardware_blocklist.friendly_name)
             """, (ieee, fname, now_iso))
+
+        # Delete devices that are no longer in blocklist
+        if current_set:
+            placeholders = ",".join("?" for _ in current_set)
+            cursor.execute(f"DELETE FROM hardware_blocklist WHERE ieee_addr NOT IN ({placeholders})", list(current_set))
+        else:
+            cursor.execute("DELETE FROM hardware_blocklist")
+
+        conn.commit()
+
+
+def remove_from_blocklist(ieee_addr: str):
+    """Removes a specific device from the hardware_blocklist table."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM hardware_blocklist WHERE ieee_addr = ?", (ieee_addr,))
         conn.commit()
 
 
@@ -425,6 +442,7 @@ def get_blocklist() -> List[Dict[str, Any]]:
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return rows
+
 
 
 def sync_orphaned_devices(

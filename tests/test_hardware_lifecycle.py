@@ -67,6 +67,18 @@ class TestHardwareLifecycleAndForensicAudit(unittest.TestCase):
         self.assertIn("0xc09b9efffe4b47b9", ieees)
         self.assertIn("0xbaddeadbeef00001", ieees)
 
+        # Test removing one item
+        sync_blocklist(["0xbaddeadbeef00001"], names)
+        items2 = get_blocklist()
+        ieees2 = {x["ieee_addr"] for x in items2}
+        self.assertNotIn("0xc09b9efffe4b47b9", ieees2)
+        self.assertIn("0xbaddeadbeef00001", ieees2)
+
+        # Test emptying blocklist
+        sync_blocklist([], names)
+        self.assertEqual(len(get_blocklist()), 0)
+
+
     def test_collector_replacement_detection(self):
         collector = ZigbeeCollector()
 
