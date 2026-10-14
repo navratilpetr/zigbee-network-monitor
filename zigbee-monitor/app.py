@@ -61,8 +61,8 @@ class DeviceIgnoreRequest(BaseModel):
 
 def get_current_user(request: Request) -> Optional[dict]:
     # Seamless single-sign-on when running inside Home Assistant Ingress
-    if request.headers.get("X-Ingress-Path") or request.headers.get("X-Hassio-Key"):
-        return {"id": 1, "username": "ha_admin", "role": "admin"}
+    if request.headers.get("X-Ingress-Path") or request.headers.get("X-Hassio-Key") or os.getenv("SUPERVISOR_TOKEN"):
+        return {"id": 1, "username": "ha_admin", "role": "admin", "is_ingress": True}
     token = request.cookies.get("session_token")
     if not token:
         auth_header = request.headers.get("Authorization")
@@ -70,7 +70,11 @@ def get_current_user(request: Request) -> Optional[dict]:
             token = auth_header.split(" ", 1)[1].strip()
     if not token:
         return None
-    return get_session_user(token)
+    user = get_session_user(token)
+    if user:
+        user["is_ingress"] = False
+    return user
+
 
 def require_user(user: Optional[dict] = Depends(get_current_user)) -> dict:
     if not user:
@@ -114,7 +118,7 @@ async def serve_index():
     return HTMLResponse(index_file.read_text(encoding="utf-8"))
 
 @app.get("/api/status")
-async def get_status():
+async def get_status(request: Request):
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT * FROM snapshots ORDER BY id DESC LIMIT 1")
@@ -126,17 +130,25 @@ async def get_status():
     
     c.execute("SELECT COUNT(*) FROM devices WHERE is_online = 0 AND (is_ignored = 0 OR is_ignored IS NULL)")
     actionable_offline = c.fetchone()[0]
+
+    # Coordinator name & model if available
+    c.execute("SELECT friendly_name, model_id FROM devices WHERE device_type = 'Coordinator' LIMIT 1")
+    coord_row = c.fetchone()
+    coord_name = coord_row["friendly_name"] if coord_row and coord_row["friendly_name"] else "SLZB-06M (192.168.74.11)"
     
     conn.close()
     
     anomalies = get_network_anomalies(hours=48)
     last_radio_scan = get_last_radio_scan_timestamp()
     last_quick_audit = snap["timestamp"] if snap else None
+    is_ing = bool(request.headers.get("X-Ingress-Path") or request.headers.get("X-Hassio-Key") or os.getenv("SUPERVISOR_TOKEN"))
 
     if not snap:
         return {
             "status": "no_data",
             "is_scanning": is_scanning,
+            "is_ingress": is_ing,
+            "coordinator": coord_name,
             "anomalies": anomalies,
             "last_quick_audit": None,
             "last_radio_scan": last_radio_scan
@@ -149,11 +161,14 @@ async def get_status():
     return {
         "status": "ok",
         "is_scanning": is_scanning,
+        "is_ingress": is_ing,
+        "coordinator": coord_name,
         "snapshot": snap_dict,
         "anomalies": anomalies,
         "last_quick_audit": last_quick_audit,
         "last_radio_scan": last_radio_scan
     }
+
 
 @app.get("/api/devices")
 async def get_devices(
@@ -685,7 +700,13 @@ async def logout(request: Request, response: Response):
 async def get_me(user: Optional[dict] = Depends(get_current_user)):
     if not user:
         raise HTTPException(status_code=401, detail="Nepřihlášen")
-    return {"authenticated": True, "username": user["username"], "role": user["role"]}
+    return {
+        "authenticated": True,
+        "username": user["username"],
+        "role": user["role"],
+        "is_ingress": user.get("is_ingress", False)
+    }
+
 
 @app.get("/api/users")
 async def list_users(user: dict = Depends(require_user)):

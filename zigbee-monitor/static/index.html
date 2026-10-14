@@ -284,22 +284,30 @@
 
   <!-- Top Navigation Header -->
   <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700/60 sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white text-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+      <div class="flex items-center space-x-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white text-lg flex-shrink-0">
           <i class="fa-solid fa-tower-broadcast"></i>
         </div>
-        <div>
-          <h1 class="text-lg font-bold text-white flex items-center gap-2">
-            Zigbee Monitor
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Infrastruktura</span>
-          </h1>
-          <p class="text-xs text-slate-400">Koordinátor SLZB-06M • Pasivní audit & Topologie</p>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold text-white flex items-center gap-2 truncate">
+              Zigbee Monitor
+            </h1>
+            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hidden sm:inline">Infrastruktura</span>
+          </div>
+          <!-- Coordinator info moved to top header -->
+          <div class="flex items-center gap-1.5 text-xs text-slate-300 mt-0.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
+            <span class="text-slate-400 text-[11px] hidden sm:inline">Koordinátor:</span>
+            <strong id="hdrCoordinator" class="text-slate-200 font-mono text-[11px] sm:text-xs truncate">SLZB-06M (192.168.74.11)</strong>
+            <span class="text-slate-400 font-mono text-[10px] sm:text-[11px] hidden md:inline">• Kanál 25</span>
+          </div>
         </div>
       </div>
 
-      <!-- Audit Actions Bar -->
-      <div class="flex items-center space-x-2 sm:space-x-3">
+      <!-- Audit Actions Bar, Health & Auto-refresh -->
+      <div class="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
         <!-- Button 1: Passive Fast Audit (0% Radio, 0.5s) -->
         <div class="flex flex-col items-end sm:items-start">
           <button id="scanBtn" onclick="triggerPassiveAudit()" title="Bleskový odečet stavů z disku na HA (0,5 s, 0% zátěž rádia). Lze spouštět kdykoliv." class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition shadow shadow-emerald-600/30">
@@ -320,8 +328,23 @@
           <span id="hdrLastRadioScan" class="text-[10px] text-amber-300/80 mt-0.5 px-0.5 font-mono" title="Poslední aktivní scan rádia">Naposledy: --</span>
         </div>
 
-        <!-- User Badge & Logout -->
-        <div id="userProfile" class="flex items-center gap-2 pl-2 border-l border-slate-700/60">
+        <!-- Health Score moved to top header -->
+        <div class="flex items-center gap-2 bg-slate-900/80 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-700/60 shadow-sm" title="Celkové zdraví a stabilita sítě">
+          <i class="fa-solid fa-shield-heart text-indigo-400"></i>
+          <div class="leading-none">
+            <span class="text-slate-400 text-[9px] uppercase tracking-wider block hidden sm:block">Zdraví sítě</span>
+            <strong id="hdrHealthScore" class="text-emerald-400 font-bold font-mono text-xs sm:text-sm">--%</strong>
+          </div>
+        </div>
+
+        <!-- Auto-refresh status indicator / trigger -->
+        <div id="autoRefreshBadge" onclick="manualRefresh()" title="Automatické obnovování každých 30 s (kliknutím obnovíte ihned)" class="cursor-pointer flex items-center gap-1 text-slate-400 bg-slate-900/60 hover:bg-slate-900 hover:text-white border border-slate-700/50 px-2 sm:px-2.5 py-1.5 rounded-lg transition">
+          <i id="autoRefreshIcon" class="fa-solid fa-arrows-rotate text-emerald-400 text-xs"></i>
+          <span class="hidden lg:inline text-[10px] font-mono">30s</span>
+        </div>
+
+        <!-- User Badge & Logout (Only in standalone non-ingress mode) -->
+        <div id="userProfile" class="items-center gap-2 pl-2 border-l border-slate-700/60 hidden">
           <div class="text-right hidden sm:block">
             <span id="navUsername" class="text-xs font-bold text-indigo-300 block">--</span>
             <span id="navRole" class="text-[10px] text-slate-400">--</span>
@@ -335,22 +358,22 @@
 
     <!-- Navigation Tabs -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 sm:space-x-4 border-t border-slate-700/40 text-sm overflow-x-auto">
-      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2">
+      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 flex-shrink-0">
         <i class="fa-solid fa-chart-pie"></i> Přehled
       </button>
-      <button onclick="switchTab('map')" id="tab-map" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+      <button onclick="switchTab('map')" id="tab-map" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 flex-shrink-0">
         <i class="fa-solid fa-diagram-project"></i> Síťová Mapa
       </button>
-      <button onclick="switchTab('devices')" id="tab-devices" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+      <button onclick="switchTab('devices')" id="tab-devices" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 flex-shrink-0">
         <i class="fa-solid fa-microchip"></i> Zařízení (<span id="tabDeviceCount">0</span>)
       </button>
-      <button onclick="switchTab('events')" id="tab-events" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+      <button onclick="switchTab('events')" id="tab-events" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 flex-shrink-0">
         <i class="fa-solid fa-clock-rotate-left"></i> Historie, Změny & Blocklist
       </button>
-      <button onclick="switchTab('ai')" id="tab-ai" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+      <button onclick="switchTab('ai')" id="tab-ai" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 flex-shrink-0">
         <i class="fa-solid fa-robot"></i> AI Diagnostik (AGY-Server)
       </button>
-      <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+      <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn px-3 py-2.5 font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 items-center gap-2 flex-shrink-0 hidden">
         <i class="fa-solid fa-gear"></i> Účty & Nastavení
       </button>
     </div>
@@ -378,38 +401,7 @@
 
     <!-- 1. DASHBOARD TAB -->
     <div id="content-dashboard" class="space-y-6">
-      <!-- Infrastructure & Diagnostics Status Bar -->
-      <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3 sm:p-4 text-xs flex flex-wrap items-center justify-between gap-3 shadow-md">
-        <div class="flex flex-wrap items-center gap-3 sm:gap-6">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <div>
-              <span class="text-slate-400 text-[10px] block">Koordinátor sítě:</span>
-              <strong class="text-white font-mono">SLZB-06M (192.168.74.11)</strong> <span class="text-slate-400 font-mono text-[11px]">• Kanál 25</span>
-            </div>
-          </div>
 
-          <div class="h-6 w-px bg-slate-700/80 hidden sm:block"></div>
-
-          <div>
-            <span class="text-slate-400 text-[10px] block">Rychlý audit (0% rádia):</span>
-            <strong id="dashLastAudit" class="text-emerald-400 font-medium font-mono">--</strong>
-          </div>
-
-          <div class="h-6 w-px bg-slate-700/80 hidden sm:block"></div>
-
-          <div>
-            <span class="text-slate-400 text-[10px] block">Rádiový scan sítě:</span>
-            <strong id="dashLastRadioScan" class="text-amber-400 font-medium font-mono">--</strong>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
-          <i class="fa-solid fa-shield-heart text-indigo-400"></i>
-          <span class="text-slate-400 text-[11px]">Zdraví sítě:</span>
-          <strong id="dashHealthScore" class="text-emerald-400 font-bold font-mono text-sm">--%</strong>
-        </div>
-      </div>
 
       <!-- Anomaly Alert Banner (Left network / Ghost devices / Unknown entity errors) -->
       <div id="anomalyBanner" class="hidden bg-rose-950/40 border border-rose-500/60 rounded-xl p-4 sm:p-5 shadow-lg shadow-rose-950/20 backdrop-blur">
@@ -1385,14 +1377,29 @@
         }
         const data = await res.json();
         currentUser = data;
-        document.getElementById('navUsername').innerText = data.username;
-        document.getElementById('navRole').innerText = data.role === 'admin' ? 'Administrátor' : 'Technik';
         
-        if (data.role === 'admin') {
-          document.getElementById('adminResetTechnicianSection')?.classList.remove('hidden');
+        if (data.is_ingress) {
+          // Inside Home Assistant Ingress: hide login modal, user badge and accounts tab
+          document.getElementById('userProfile')?.classList.add('hidden');
+          document.getElementById('tab-settings')?.classList.add('hidden');
+          document.getElementById('content-settings')?.classList.add('hidden');
+          hideLoginModal();
+        } else {
+          // Standalone non-ingress mode
+          document.getElementById('userProfile')?.classList.remove('hidden');
+          document.getElementById('userProfile')?.classList.add('flex');
+          document.getElementById('tab-settings')?.classList.remove('hidden');
+          const uEl = document.getElementById('navUsername');
+          if (uEl) uEl.innerText = data.username;
+          const rEl = document.getElementById('navRole');
+          if (rEl) rEl.innerText = data.role === 'admin' ? 'Administrátor' : 'Technik';
+          
+          if (data.role === 'admin') {
+            document.getElementById('adminResetTechnicianSection')?.classList.remove('hidden');
+          }
+          hideLoginModal();
         }
 
-        hideLoginModal();
         return true;
       } catch (err) {
         showLoginModal();
@@ -1596,7 +1603,10 @@
 
     /* =================== TABS & UI NAVIGATION =================== */
 
+    let currentTab = 'dashboard';
+
     function switchTab(tabId) {
+      currentTab = tabId;
       ['dashboard', 'map', 'devices', 'events', 'ai', 'settings'].forEach(t => {
         const btn = document.getElementById(`tab-${t}`);
         const content = document.getElementById(`content-${t}`);
@@ -1666,6 +1676,50 @@
       }
     }
 
+    /* =================== AUTO-REFRESH ENGINE =================== */
+    let autoRefreshTimer = null;
+    const AUTO_REFRESH_INTERVAL_MS = 30000;
+
+    function startAutoRefresh() {
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(async () => {
+        await runAutoRefresh();
+      }, AUTO_REFRESH_INTERVAL_MS);
+    }
+
+    async function runAutoRefresh() {
+      const icon = document.getElementById('autoRefreshIcon');
+      if (icon) icon.classList.add('fa-spin');
+      try {
+        await loadStatus();
+        if (currentTab === 'dashboard') {
+          await loadDashboardProblemLists();
+        } else if (currentTab === 'devices') {
+          const searchInput = document.getElementById('deviceSearch');
+          if (searchInput !== document.activeElement) {
+            await loadDevices();
+          }
+        }
+      } catch (err) {
+        console.warn('Auto-refresh error', err);
+      } finally {
+        setTimeout(() => {
+          if (icon) icon.classList.remove('fa-spin');
+        }, 800);
+      }
+    }
+
+    async function manualRefresh() {
+      showToast('Obnovuji data...', 'fa-arrows-rotate text-indigo-400');
+      await runAutoRefresh();
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        runAutoRefresh();
+      }
+    });
+
     async function loadStatus() {
       try {
         const res = await fetch('/api/status');
@@ -1687,31 +1741,39 @@
           document.getElementById('statLowBatt').innerText = s.low_battery_count;
           document.getElementById('tabDeviceCount').innerText = s.total_devices;
 
+          // Coordinator info in top header
+          if (data.coordinator) {
+            const coordEl = document.getElementById('hdrCoordinator');
+            if (coordEl) coordEl.innerText = data.coordinator;
+          }
+
+          // Ingress check: keep accounts tab and logout button hidden
+          if (data.is_ingress) {
+            document.getElementById('userProfile')?.classList.add('hidden');
+            document.getElementById('tab-settings')?.classList.add('hidden');
+            document.getElementById('content-settings')?.classList.add('hidden');
+          }
+
           // Header action buttons timestamps
           const hdrQuick = document.getElementById('hdrLastQuickAudit');
           if (hdrQuick) hdrQuick.innerText = 'Naposledy: ' + formatShortTime(data.last_quick_audit);
           const hdrRadio = document.getElementById('hdrLastRadioScan');
           if (hdrRadio) hdrRadio.innerText = 'Naposledy: ' + formatShortTime(data.last_radio_scan);
 
-          // Dashboard top status bar
-          const dashQuick = document.getElementById('dashLastAudit');
-          if (dashQuick) dashQuick.innerText = formatRelativeTime(data.last_quick_audit);
-          const dashRadio = document.getElementById('dashLastRadioScan');
-          if (dashRadio) dashRadio.innerText = formatRelativeTime(data.last_radio_scan);
-
-          // Health Score calculation
+          // Health Score calculation (in top header)
           const total = s.total_devices || 1;
           const weak = s.weak_lqi_count || 0;
           const healthScore = Math.max(0, Math.min(100, Math.round(((total - actionable - (weak * 0.2)) / total) * 100)));
-          const hsEl = document.getElementById('dashHealthScore');
+          const hsEl = document.getElementById('hdrHealthScore') || document.getElementById('dashHealthScore');
           if (hsEl) {
             hsEl.innerText = `${healthScore} %`;
-            hsEl.className = healthScore >= 95 ? "text-emerald-400 font-bold font-mono text-sm" : (healthScore >= 80 ? "text-amber-400 font-bold font-mono text-sm" : "text-rose-400 font-bold font-mono text-sm");
+            hsEl.className = healthScore >= 95 ? "text-emerald-400 font-bold font-mono text-xs sm:text-sm" : (healthScore >= 80 ? "text-amber-400 font-bold font-mono text-xs sm:text-sm" : "text-rose-400 font-bold font-mono text-xs sm:text-sm");
           }
 
           // Infrastructure card router counter
           const rcEl = document.getElementById('dashRouterCount');
           if (rcEl) rcEl.innerText = s.routers || 37;
+
 
           // Render anomaly banner if any
           const anom = data.anomalies;
@@ -3870,11 +3932,13 @@
     document.addEventListener('DOMContentLoaded', async () => {
       const authed = await checkAuth();
       if (authed) {
-        loadStatus();
-        loadDashboardProblemLists();
+        await loadStatus();
+        await loadDashboardProblemLists();
         checkRadioScanStatus();
+        startAutoRefresh();
       }
     });
+
   </script>
 </body>
 </html>

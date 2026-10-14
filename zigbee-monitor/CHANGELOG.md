@@ -2,7 +2,14 @@
 
 Všechny významné změny v tomto doplňku budou dokumentovány v tomto souboru.
 
+## [1.0.1] - 2026-10-14
+### Změněno & Vylepšeno
+- **Úspora místa v záložce Přehled**: Informace o koordinátorovi sítě a celkové zdraví sítě přesunuty přímo do horní lišty. Odstraněn duplicitní stavový pruh.
+- **Automatické obnovování (Auto-reload)**: Zaveden periodický refresh metrik každých 30 sekund s indikátorem stavu a okamžitým obnovením při návratu do okna.
+- **Optimalizace pro Home Assistant Ingress**: V Ingress režimu se automaticky skrývá správa uživatelských účtů a tlačítko odhlášení (autentizace je kompletně delegována na Home Assistant).
+
 ## [1.0.0] - 2026-10-14
+
 ### Přidáno
 - Úvodní veřejná verze univerzálního Zigbee Network Monitoru.
 - Podpora pro Home Assistant Ingress a automatické SSO přihlášení.
