@@ -2350,9 +2350,20 @@
 
       currentlySelectedNodeIeee = ieee;
 
-      document.getElementById('detailLqi').innerText = node.linkquality !== null ? `LQI ${node.linkquality}` : '--';
-      document.getElementById('detailBatt').innerText = node.battery !== null ? `${node.battery}%` : '230V';
-      document.getElementById('detailParent').innerText = node.parent_name || (node.device_type === 'Coordinator' ? 'Hlavní koordinátor (Root)' : 'Neznámý / V síti');
+      const detailParentEl = document.getElementById('detailParent');
+      if (node.parent_name) {
+        detailParentEl.innerText = node.parent_name;
+        detailParentEl.title = `Rodičovský uzel: ${node.parent_name}`;
+        detailParentEl.className = 'font-bold text-indigo-300 text-sm mt-0.5';
+      } else if (node.device_type === 'Coordinator') {
+        detailParentEl.innerText = 'Hlavní koordinátor (Root)';
+        detailParentEl.title = 'Kořenový uzel sítě';
+        detailParentEl.className = 'font-bold text-cyan-400 text-sm mt-0.5';
+      } else {
+        detailParentEl.innerHTML = '<span class="text-slate-400 font-normal italic">Neznámý / V síti <i class="fa-solid fa-circle-info text-xs text-sky-400/80 ml-1 cursor-help"></i></span>';
+        detailParentEl.title = 'Rodičovský router neodpověděl při radiovém scanu (timeout LQI), nebo zařízení ještě neposlalo mapovací data. Zařízení je v síti aktivní.';
+        detailParentEl.className = 'text-sm mt-0.5';
+      }
 
       // Last seen timestamp & relative age calculation
       const lastSeenEl = document.getElementById('detailLastSeen');
@@ -3051,7 +3062,7 @@
           </button>
         `;
       } else {
-        parentContainer.innerHTML = '<span class="text-slate-400 italic">Neznámý / V síti</span>';
+        parentContainer.innerHTML = '<span class="text-slate-400 italic cursor-help" title="Rodičovský router neodpověděl při radiovém scanu (např. timeout LQI), nebo zařízení ještě neposlalo mapovací data. Zařízení je v síti aktivní.">Neznámý / V síti <i class="fa-solid fa-circle-info text-xs text-sky-400/80 ml-1"></i></span>';
       }
 
       // Children list

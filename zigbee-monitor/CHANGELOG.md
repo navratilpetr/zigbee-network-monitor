@@ -2,6 +2,11 @@
 
 Všechny významné změny v tomto doplňku budou dokumentovány v tomto souboru.
 
+## [1.0.3] - 2026-10-14
+### Opraveno & Vylepšeno
+- **Kontinuita topologie při výpadku/timeoutu routerů**: Pokud během aktivního rádiového scanu některý router neodpoví včas na `Mgmt_Lqi_req` (timeout LQI), koncová bateriová zařízení (např. TRV hlavice) neztratí své vazby v topologické mapě. Monitor nyní zachovává posledního známého platného rodiče z databáze (`parent persistence`).
+- **Informativní nápověda pro neznámé rodiče**: Pokud zařízení ještě nemá záznam o rodiči v databázi, zobrazuje se přehledný tooltip vysvětlující, že zařízení je v síti online, ale router neodpověděl při scanu.
+
 ## [1.0.2] - 2026-10-14
 ### Opraveno
 - **Plná obousměrná synchronizace blocklistu**: Při odebrání adresy ze Z2M `configuration.yaml` (nebo jeho vyprázdnění na `blocklist: []`) se záznam okamžitě automaticky odstraní i z evidence monitoru.

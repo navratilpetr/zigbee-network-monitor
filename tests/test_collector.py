@@ -52,6 +52,36 @@ class TestCollectorHelpers(unittest.TestCase):
         self.assertIn("snapshots_deleted", result)
         self.assertIn("events_deleted", result)
 
+    def test_compute_network_topology_parents_with_scan_timeout_persistence(self):
+        collector = ZigbeeCollector()
+        devices = [
+            {"ieeeAddr": "0xcoord", "type": "Coordinator"},
+            {"ieeeAddr": "0xrouter1", "type": "Router"},
+            {"ieeeAddr": "0xvalve_211hll", "type": "EndDevice"},
+        ]
+        online_status = {
+            "0xcoord": True,
+            "0xrouter1": True,
+            "0xvalve_211hll": True,
+        }
+        # In current scan, 0xrouter1 timed out and 0xvalve_211hll has no link
+        links = [
+            {"sourceIeeeAddr": "0xcoord", "targetIeeeAddr": "0xrouter1", "relationship": 0, "lqi": 150}
+        ]
+        existing_parents = {
+            "0xvalve_211hll": "0xrouter1"
+        }
+
+        # With existing_parents, the EndDevice should preserve its last known parent
+        parents = collector.compute_network_topology_parents(
+            devices_raw=devices,
+            links=links,
+            online_status=online_status,
+            existing_parents=existing_parents
+        )
+        self.assertEqual(parents.get("0xvalve_211hll"), "0xrouter1")
+        self.assertEqual(parents.get("0xrouter1"), "0xcoord")
+
 
 if __name__ == "__main__":
     unittest.main()

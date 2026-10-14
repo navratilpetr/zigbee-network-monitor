@@ -274,12 +274,18 @@ class ZigbeeCollector:
         return self._fetch_raw_data_ssh()
 
     def compute_network_topology_parents(
-        self, devices_raw: List[Dict[str, Any]], links: List[Dict[str, Any]], online_status: Dict[str, bool]
+        self,
+        devices_raw: List[Dict[str, Any]],
+        links: List[Dict[str, Any]],
+        online_status: Dict[str, bool],
+        existing_parents: Optional[Dict[str, str]] = None
     ) -> Dict[str, str]:
         """
         Builds a comprehensive spanning tree connecting every online device to the Coordinator.
         - For Routers: Uses Dijkstra/BFS from Coordinator across mesh links (shortest hops, highest LQI).
         - For EndDevices: Uses reported parent (rel 0/1) or closest active neighbor router.
+        - Persistence: If an online device has no links in current scan (e.g. parent router timed out during scan),
+          it retains its last known parent from the database so topology links don't get lost.
         """
         import heapq
         
@@ -349,6 +355,10 @@ class ZigbeeCollector:
                 p = router_parents.get(ieee)
                 if p:
                     parents[ieee] = p
+                elif existing_parents and existing_parents.get(ieee):
+                    prev_p = existing_parents.get(ieee)
+                    if prev_p in dev_map:
+                        parents[ieee] = prev_p
             else:  # EndDevice
                 p = end_parents.get(ieee)
                 if p:
@@ -361,6 +371,10 @@ class ZigbeeCollector:
                     if candidates:
                         best = max(candidates, key=lambda x: x[1])
                         parents[ieee] = best[0]
+                    elif existing_parents and existing_parents.get(ieee):
+                        prev_p = existing_parents.get(ieee)
+                        if prev_p in dev_map:
+                            parents[ieee] = prev_p
 
         return parents
 
@@ -686,15 +700,16 @@ class ZigbeeCollector:
             else:
                 online_status[ieee] = is_recent
 
-        # Compute full spanning tree topology parents
-        parents = self.compute_network_topology_parents(devices_raw, links, online_status)
-
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Load existing known devices from DB
-        cursor.execute("SELECT ieee_addr, friendly_name, is_online, linkquality, battery, is_ignored, ignore_reason FROM devices")
+        # Load existing known devices from DB (including known parent relationships)
+        cursor.execute("SELECT ieee_addr, friendly_name, is_online, linkquality, battery, is_ignored, ignore_reason, parent_ieee, parent_name FROM devices")
         existing_devices = {row["ieee_addr"]: dict(row) for row in cursor.fetchall()}
+        existing_parents = {ieee: d["parent_ieee"] for ieee, d in existing_devices.items() if d.get("parent_ieee")}
+
+        # Compute full spanning tree topology parents (persisting last known parent on scan timeouts)
+        parents = self.compute_network_topology_parents(devices_raw, links, online_status, existing_parents=existing_parents)
 
         total_devices = 0
         router_count = 0
@@ -1076,6 +1091,8 @@ class ZigbeeCollector:
             raw_state_json = json.dumps(state)
             first_seen = existing_devices.get(ieee, {}).get("first_seen", now_iso)
             parent_ieee = parents.get(ieee)
+            if not parent_ieee and is_online:
+                parent_ieee = existing_devices.get(ieee, {}).get("parent_ieee")
             parent_name = friendly_names.get(parent_ieee, parent_ieee) if parent_ieee else None
 
             # Ignore / Mute status handling and Auto-wakeup

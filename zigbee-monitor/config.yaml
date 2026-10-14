@@ -1,7 +1,7 @@
 name: "Zigbee Network Monitor"
 description: "Pokročilá diagnostika, LQI telemetrie, topologická mapa a AI plánovač údržby pro Zigbee2MQTT"
 slug: "zigbee_network_monitor"
-version: "1.0.2"
+version: "1.0.3"
 init: false
 
 
